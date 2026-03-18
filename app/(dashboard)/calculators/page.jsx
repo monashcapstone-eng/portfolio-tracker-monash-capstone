@@ -227,44 +227,218 @@ function CAGRCalculator() {
 }
 
 function DividendCalculator() {
-  const [sharePrice, setSharePrice] = useState("");
-  const [annualDividend, setAnnualDividend] = useState("");
-  const [shares, setShares] = useState("");
-  const [result, setResult] = useState(null);
+  const [sharePrice, setSharePrice] = useState("100");
+  const [numShares, setNumShares] = useState("100");
+  const [holdingPeriod, setHoldingPeriod] = useState("10");
+  const [dividendYield, setDividendYield] = useState("5");
+  const [annualContribution, setAnnualContribution] = useState("1000");
+  const [drip, setDrip] = useState(false);
+  const [stockAppreciation, setStockAppreciation] = useState("2");
+  const [dividendGrowth, setDividendGrowth] = useState("2");
 
-  const calculate = () => {
-    const price = parseFloat(sharePrice);
-    const dividend = parseFloat(annualDividend);
-    const qty = parseFloat(shares);
-    if (isNaN(price) || isNaN(dividend) || isNaN(qty) || price <= 0) return;
+  const result = useMemo(() => {
+    const price = parseFloat(sharePrice) || 0;
+    const shares = parseFloat(numShares) || 0;
+    const years = parseInt(holdingPeriod) || 0;
+    const dy = (parseFloat(dividendYield) || 0) / 100;
+    const contrib = parseFloat(annualContribution) || 0;
+    const appreciation = (parseFloat(stockAppreciation) || 0) / 100;
+    const divGrowth = (parseFloat(dividendGrowth) || 0) / 100;
 
-    const dividendYield = (dividend / price) * 100;
-    const annualIncome = dividend * qty;
-    const monthlyIncome = annualIncome / 12;
+    if (price <= 0 || shares <= 0 || years <= 0) return null;
 
-    setResult({ dividendYield, annualIncome, monthlyIncome });
-  };
+    let currentShares = shares;
+    let currentPrice = price;
+    let currentDivPerShare = price * dy;
+    let totalDividends = 0;
+    let totalContributions = 0;
+    const yearlyData = [];
+
+    for (let y = 1; y <= years; y++) {
+      const annualDiv = currentShares * currentDivPerShare;
+      totalDividends += annualDiv;
+
+      if (drip) {
+        currentShares += annualDiv / currentPrice;
+      }
+
+      totalContributions += contrib;
+      currentShares += contrib / currentPrice;
+
+      yearlyData.push({
+        year: y,
+        name: `${y}`,
+        monthlyIncome: annualDiv / 12,
+      });
+
+      currentPrice *= (1 + appreciation);
+      currentDivPerShare *= (1 + divGrowth);
+    }
+
+    const principal = price * shares;
+    const growthValue = (currentPrice - price) * shares;
+    const totalValue = totalDividends + totalContributions + growthValue + principal;
+
+    return {
+      totalDividends,
+      totalContributions,
+      growthValue,
+      principal,
+      totalValue,
+      yearlyData,
+      breakdown: [
+        { label: "Dividends", value: totalDividends, color: "#f59e0b" },
+        { label: "Contributions", value: totalContributions, color: "#f97316" },
+        { label: "Growth", value: growthValue, color: "#6366f1" },
+        { label: "Principal", value: principal, color: "#c7d2fe" },
+      ],
+    };
+  }, [sharePrice, numShares, holdingPeriod, dividendYield, annualContribution, drip, stockAppreciation, dividendGrowth]);
 
   return (
-    <Card title="Dividend Calculator" description="Estimate your dividend income and yield based on current share price.">
-      <Label text="Share Price (AUD)">
-        <input type="number" className={field} value={sharePrice} onChange={(e) => setSharePrice(e.target.value)} placeholder="0.00" />
-      </Label>
-      <Label text="Annual Dividend Per Share (AUD)">
-        <input type="number" className={field} value={annualDividend} onChange={(e) => setAnnualDividend(e.target.value)} placeholder="0.00" />
-      </Label>
-      <Label text="Number of Shares">
-        <input type="number" className={field} value={shares} onChange={(e) => setShares(e.target.value)} placeholder="0" />
-      </Label>
-      <button type="button" onClick={calculate} className={btnPrimary}>Calculate Dividends</button>
-      {result && (
-        <div className={resultBox}>
-          <Row label="Dividend Yield" value={pct(result.dividendYield)} />
-          <Row label="Annual Income" value={currency(result.annualIncome)} highlight />
-          <Row label="Monthly Income" value={currency(result.monthlyIncome)} />
+    <div className="surface-card overflow-hidden">
+      <div className="grid lg:grid-cols-2">
+        {/* Left – Inputs */}
+        <div className="space-y-5 border-b border-slate-200 p-6 dark:border-slate-700 lg:border-b-0 lg:border-r">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Dividend Calculator</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Estimate your dividend income over time with reinvestment and growth.</p>
+          </div>
+
+          <Label text="Unit/share price">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input type="number" className={`${field} pl-8`} value={sharePrice} onChange={(e) => setSharePrice(e.target.value)} />
+            </div>
+          </Label>
+
+          <Label text="Number of shares">
+            <input type="number" className={field} value={numShares} onChange={(e) => setNumShares(e.target.value)} />
+          </Label>
+
+          <Label text="Holding period">
+            <select className={field} value={holdingPeriod} onChange={(e) => setHoldingPeriod(e.target.value)}>
+              {[1, 2, 3, 5, 7, 10, 15, 20, 25, 30].map((y) => (
+                <option key={y} value={y}>{y} year{y > 1 ? "s" : ""}</option>
+              ))}
+            </select>
+          </Label>
+
+          <Label text="Annual dividend yield">
+            <div className="relative">
+              <input type="number" className={`${field} pr-8`} value={dividendYield} onChange={(e) => setDividendYield(e.target.value)} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">%</span>
+            </div>
+          </Label>
+
+          <Label text="Annual contribution">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input type="number" className={`${field} pl-8`} value={annualContribution} onChange={(e) => setAnnualContribution(e.target.value)} />
+            </div>
+          </Label>
+
+          <div className="space-y-1">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Dividend reinvestment plan</span>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <input type="radio" name="drip" checked={drip} onChange={() => setDrip(true)} className="accent-primary" /> Yes
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <input type="radio" name="drip" checked={!drip} onChange={() => setDrip(false)} className="accent-primary" /> No
+              </label>
+            </div>
+          </div>
+
+          <Label text="Expected annual stock appreciation">
+            <div className="relative">
+              <input type="number" className={`${field} pr-8`} value={stockAppreciation} onChange={(e) => setStockAppreciation(e.target.value)} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">%</span>
+            </div>
+          </Label>
+
+          <Label text="Expected dividend growth rate">
+            <div className="relative">
+              <input type="number" className={`${field} pr-8`} value={dividendGrowth} onChange={(e) => setDividendGrowth(e.target.value)} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">%</span>
+            </div>
+          </Label>
         </div>
-      )}
-    </Card>
+
+        {/* Right – Results */}
+        <div className="p-6 space-y-6">
+          {result ? (
+            <>
+              {/* Hero number */}
+              <div className="text-center">
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Estimated dividend return</p>
+                <p className="mt-1 text-4xl font-bold text-slate-950 dark:text-white">{currency(result.totalDividends)}</p>
+              </div>
+
+              {/* Stacked bar */}
+              <div className="flex h-4 overflow-hidden rounded-full">
+                {result.breakdown.map((seg) => {
+                  const widthPct = result.totalValue > 0 ? (seg.value / result.totalValue) * 100 : 0;
+                  return widthPct > 0 ? (
+                    <div key={seg.label} style={{ width: `${widthPct}%`, backgroundColor: seg.color }} />
+                  ) : null;
+                })}
+              </div>
+
+              {/* Breakdown legend */}
+              <div className="space-y-2">
+                {result.breakdown.map((seg) => {
+                  const segPct = result.totalValue > 0 ? (seg.value / result.totalValue) * 100 : 0;
+                  return (
+                    <div key={seg.label} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: seg.color }} />
+                        <span className="text-slate-600 dark:text-slate-400">{seg.label}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="font-medium text-slate-900 dark:text-white">{currency(seg.value)}</span>
+                        <span className="w-10 text-right text-slate-400">{Math.round(segPct)}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bar chart */}
+              <div>
+                <p className="mb-3 text-center text-sm font-medium text-slate-700 dark:text-slate-300">Average monthly income</p>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={result.yearlyData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Math.round(v)}`} width={50} />
+                    <Tooltip formatter={(v) => [currency(v), "Monthly Income"]} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,.1)" }} />
+                    <Bar dataKey="monthlyIncome" radius={[4, 4, 0, 0]}>
+                      {result.yearlyData.map((_, i) => (
+                        <Cell key={i} fill="#6366f1" />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Yearly table */}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                {result.yearlyData.map((row) => (
+                  <div key={row.year} className="flex items-center justify-between border-b border-slate-100 py-2 dark:border-slate-800">
+                    <span className="text-slate-600 dark:text-slate-400">Year {row.year}</span>
+                    <span className="font-medium text-slate-900 dark:text-white">{currency(row.monthlyIncome)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+              Enter values to see results
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
