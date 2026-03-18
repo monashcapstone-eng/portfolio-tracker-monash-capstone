@@ -7,6 +7,8 @@ import {
   PieChart,
   TrendingUp,
   Activity,
+  Building2,
+  Calculator,
   FileText,
   HelpCircle,
   X,
@@ -18,7 +20,8 @@ const navItems = [
   { label: "Holdings", href: "/holdings", icon: PieChart },
   { label: "Performance", href: "/performance", icon: TrendingUp },
   { label: "Activities", href: "/activities", icon: Activity },
-  // { label: "Brokers", href: "/brokers", icon: Building2 },
+  { label: "Brokers", href: "/brokers", icon: Building2 },
+  { label: "Calculators", href: "/calculators", icon: Calculator },
   { label: "Reports", href: "/reports", icon: FileText },
   { label: "FAQ", href: "/faq", icon: HelpCircle },
 ];
