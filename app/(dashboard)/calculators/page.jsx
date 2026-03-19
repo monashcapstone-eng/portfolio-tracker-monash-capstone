@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 /* ─── helpers ─── */
 const currency = (v) =>
@@ -75,53 +75,212 @@ function AustralianCGTCalculator() {
 }
 
 function InvestmentCalculator() {
-  const [principal, setPrincipal] = useState("");
-  const [rate, setRate] = useState("");
-  const [years, setYears] = useState("");
-  const [monthlyContribution, setMonthlyContribution] = useState("");
-  const [result, setResult] = useState(null);
+  const [principal, setPrincipal] = useState("400000");
+  const [rate, setRate] = useState("10");
+  const [contribFrequency, setContribFrequency] = useState("annually");
+  const [contribution, setContribution] = useState("10000");
+  const [target, setTarget] = useState("1000000");
 
-  const calculate = () => {
-    const p = parseFloat(principal);
-    const r = parseFloat(rate) / 100;
-    const t = parseFloat(years);
-    const m = parseFloat(monthlyContribution) || 0;
-    if (isNaN(p) || isNaN(r) || isNaN(t)) return;
+  const result = useMemo(() => {
+    const p = parseFloat(principal) || 0;
+    const r = (parseFloat(rate) || 0) / 100;
+    const contrib = parseFloat(contribution) || 0;
+    const goalValue = parseFloat(target) || 0;
 
+    if (p <= 0 || r <= 0 || goalValue <= 0) return null;
+
+    const contribPerYear = contribFrequency === "monthly" ? contrib * 12
+      : contribFrequency === "quarterly" ? contrib * 4
+      : contrib;
+
+    // Calculate time to reach target (in months for precision)
+    let balance = p;
+    let months = 0;
     const monthlyRate = r / 12;
-    const months = t * 12;
-    const compoundedPrincipal = p * Math.pow(1 + monthlyRate, months);
-    const compoundedContributions = m * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
-    const futureValue = compoundedPrincipal + (m > 0 ? compoundedContributions : 0);
-    const totalContributed = p + m * months;
-    const totalInterest = futureValue - totalContributed;
+    const monthlyContrib = contribPerYear / 12;
+    const maxMonths = 100 * 12;
 
-    setResult({ futureValue, totalContributed, totalInterest });
-  };
+    while (balance < goalValue && months < maxMonths) {
+      balance = balance * (1 + monthlyRate) + monthlyContrib;
+      months++;
+    }
+
+    const totalYears = Math.floor(months / 12);
+    const remainingMonths = months % 12;
+
+    // Build yearly data (up to 10 years for display)
+    const displayYears = Math.min(totalYears + (remainingMonths > 0 ? 1 : 0), 10);
+    const yearlyData = [];
+    let runningBalance = p;
+
+    for (let y = 1; y <= displayYears; y++) {
+      for (let m = 0; m < 12; m++) {
+        runningBalance = runningBalance * (1 + monthlyRate) + monthlyContrib;
+      }
+      yearlyData.push({
+        year: y,
+        name: `${y}`,
+        value: runningBalance,
+      });
+    }
+
+    const totalContributions = contribPerYear * totalYears + (contribPerYear / 12) * remainingMonths;
+    const finalBalance = balance;
+    const growthValue = finalBalance - p - totalContributions;
+
+    const breakdown = [
+      { label: "Contributions", value: totalContributions, color: "#f59e0b" },
+      { label: "Growth", value: growthValue, color: "#f97316" },
+      { label: "Principal", value: p, color: "#6366f1" },
+    ];
+    const totalValue = p + totalContributions + growthValue;
+
+    return {
+      totalYears,
+      remainingMonths,
+      totalContributions,
+      growthValue,
+      principal: p,
+      totalValue,
+      breakdown,
+      yearlyData,
+      displayYears,
+      actualYears: totalYears + (remainingMonths > 0 ? 1 : 0),
+    };
+  }, [principal, rate, contribFrequency, contribution, target]);
+
+  const timeLabel = result
+    ? `${result.totalYears} year${result.totalYears !== 1 ? "s" : ""}${result.remainingMonths > 0 ? ` and ${result.remainingMonths} month${result.remainingMonths !== 1 ? "s" : ""}` : ""}`
+    : "";
 
   return (
-    <Card title="Investment Calculator" description="Project the future value of an investment with regular contributions and compound interest.">
-      <Label text="Initial Investment (AUD)">
-        <input type="number" className={field} value={principal} onChange={(e) => setPrincipal(e.target.value)} placeholder="0.00" />
-      </Label>
-      <Label text="Annual Return Rate (%)">
-        <input type="number" className={field} value={rate} onChange={(e) => setRate(e.target.value)} placeholder="7" />
-      </Label>
-      <Label text="Investment Period (Years)">
-        <input type="number" className={field} value={years} onChange={(e) => setYears(e.target.value)} placeholder="10" />
-      </Label>
-      <Label text="Monthly Contribution (AUD)">
-        <input type="number" className={field} value={monthlyContribution} onChange={(e) => setMonthlyContribution(e.target.value)} placeholder="0.00" />
-      </Label>
-      <button type="button" onClick={calculate} className={btnPrimary}>Calculate</button>
-      {result && (
-        <div className={resultBox}>
-          <Row label="Future Value" value={currency(result.futureValue)} highlight />
-          <Row label="Total Contributed" value={currency(result.totalContributed)} />
-          <Row label="Total Interest Earned" value={currency(result.totalInterest)} />
+    <div className="surface-card overflow-hidden">
+      <div className="grid lg:grid-cols-2">
+        {/* Left – Inputs */}
+        <div className="space-y-5 border-b border-slate-200 p-6 dark:border-slate-700 lg:border-b-0 lg:border-r">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Investment Calculator</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Estimate how long it takes to reach your investment goal.</p>
+          </div>
+
+          <Label text="Initial investment value">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input type="number" className={`${field} pl-8`} value={principal} onChange={(e) => setPrincipal(e.target.value)} />
+            </div>
+          </Label>
+
+          <Label text="Annual return">
+            <div className="relative">
+              <input type="number" className={`${field} pr-8`} value={rate} onChange={(e) => setRate(e.target.value)} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">%</span>
+            </div>
+          </Label>
+
+          <Label text="Contribution frequency">
+            <select className={field} value={contribFrequency} onChange={(e) => setContribFrequency(e.target.value)}>
+              <option value="annually">Annually</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </Label>
+
+          <Label text={`${contribFrequency === "monthly" ? "Monthly" : contribFrequency === "quarterly" ? "Quarterly" : "Annual"} contribution`}>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input type="number" className={`${field} pl-8`} value={contribution} onChange={(e) => setContribution(e.target.value)} />
+            </div>
+          </Label>
+
+          <Label text="Target investment value">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input type="number" className={`${field} pl-8`} value={target} onChange={(e) => setTarget(e.target.value)} />
+            </div>
+          </Label>
         </div>
-      )}
-    </Card>
+
+        {/* Right – Results */}
+        <div className="p-6 space-y-6">
+          {result ? (
+            <>
+              {/* Hero */}
+              <div className="text-center">
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Estimated number of years to achieve your goal</p>
+                <p className="mt-1 text-4xl font-bold text-slate-950 dark:text-white">{timeLabel}</p>
+              </div>
+
+              {/* Stacked bar */}
+              <div className="flex h-4 overflow-hidden rounded-full">
+                {result.breakdown.map((seg) => {
+                  const widthPct = result.totalValue > 0 ? (seg.value / result.totalValue) * 100 : 0;
+                  return widthPct > 0 ? (
+                    <div key={seg.label} style={{ width: `${widthPct}%`, backgroundColor: seg.color }} />
+                  ) : null;
+                })}
+              </div>
+
+              {/* Breakdown legend */}
+              <div className="space-y-2">
+                {result.breakdown.map((seg) => {
+                  const segPct = result.totalValue > 0 ? (seg.value / result.totalValue) * 100 : 0;
+                  return (
+                    <div key={seg.label} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: seg.color }} />
+                        <span className="text-slate-600 dark:text-slate-400">{seg.label}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="font-medium text-slate-900 dark:text-white">{currency(seg.value)}</span>
+                        <span className="w-10 text-right text-slate-400">{Math.round(segPct)}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bar chart */}
+              <div>
+                <p className="mb-3 text-center text-sm font-medium text-slate-700 dark:text-slate-300">Portfolio growth over the years</p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={result.yearlyData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${Math.round(v / 1000)}k` : `$${v}`} width={60} />
+                    <Tooltip formatter={(v) => [currency(v), "Portfolio Value"]} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,.1)" }} />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                      {result.yearlyData.map((_, i) => (
+                        <Cell key={i} fill="#6366f1" />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Yearly table */}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                {result.yearlyData.map((row) => (
+                  <div key={row.year} className="flex items-center justify-between border-b border-slate-100 py-2 dark:border-slate-800">
+                    <span className="text-slate-600 dark:text-slate-400">Year {row.year}</span>
+                    <span className="font-medium text-slate-900 dark:text-white">{currency(row.value)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Note */}
+              {result.actualYears > 10 && (
+                <p className="text-xs italic text-slate-400">
+                  Note: Graph and table values are limited to a 10-year view. While your investment timeline may extend beyond this period, only the first 10 years of growth will be displayed. The calculated time to reach your target value remains accurate for the full investment period.
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+              Enter values to see results
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
