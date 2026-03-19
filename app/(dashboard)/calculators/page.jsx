@@ -21,56 +21,193 @@ const resultBox =
 /* ─── Calculator Cards ─── */
 
 function AustralianCGTCalculator() {
-  const [purchasePrice, setPurchasePrice] = useState("");
-  const [salePrice, setSalePrice] = useState("");
+  const [purchasePrice, setPurchasePrice] = useState("50000");
+  const [salePrice, setSalePrice] = useState("85000");
   const [heldOver12Months, setHeldOver12Months] = useState(true);
   const [marginalRate, setMarginalRate] = useState("32.5");
-  const [result, setResult] = useState(null);
+  const [otherIncome, setOtherIncome] = useState("80000");
 
-  const calculate = () => {
-    const buy = parseFloat(purchasePrice);
-    const sell = parseFloat(salePrice);
-    const rate = parseFloat(marginalRate) / 100;
-    if (isNaN(buy) || isNaN(sell) || isNaN(rate)) return;
+  const result = useMemo(() => {
+    const buy = parseFloat(purchasePrice) || 0;
+    const sell = parseFloat(salePrice) || 0;
+    const rate = (parseFloat(marginalRate) || 0) / 100;
+    if (buy <= 0 || sell <= 0) return null;
 
     const capitalGain = sell - buy;
-    const taxableGain = capitalGain > 0 && heldOver12Months ? capitalGain * 0.5 : capitalGain;
-    const taxPayable = taxableGain > 0 ? taxableGain * rate : 0;
+    if (capitalGain <= 0) {
+      return { capitalGain, taxableGain: 0, taxPayable: 0, discount: false, netProfit: capitalGain, effectiveRate: 0, breakdown: [] };
+    }
 
-    setResult({ capitalGain, taxableGain, taxPayable, discount: heldOver12Months && capitalGain > 0 });
-  };
+    const discountApplied = heldOver12Months && capitalGain > 0;
+    const taxableGain = discountApplied ? capitalGain * 0.5 : capitalGain;
+    const taxPayable = taxableGain * rate;
+    const netProfit = capitalGain - taxPayable;
+    const effectiveRate = capitalGain > 0 ? (taxPayable / capitalGain) * 100 : 0;
+
+    const breakdown = [
+      { label: "Net Profit", value: netProfit, color: "#22c55e" },
+      { label: "Tax Payable", value: taxPayable, color: "#ef4444" },
+    ];
+    if (discountApplied) {
+      breakdown.push({ label: "CGT Discount Saved", value: capitalGain * 0.5 * rate, color: "#6366f1" });
+    }
+
+    const barData = [
+      { name: "Purchase", value: buy, fill: "#94a3b8" },
+      { name: "Sale", value: sell, fill: "#6366f1" },
+    ];
+
+    return { capitalGain, taxableGain, taxPayable, discount: discountApplied, netProfit, effectiveRate, breakdown, barData };
+  }, [purchasePrice, salePrice, heldOver12Months, marginalRate]);
 
   return (
-    <Card title="Australian CGT Calculator" description="Calculate capital gains tax with the 50% CGT discount for assets held over 12 months.">
-      <Label text="Purchase Price (AUD)">
-        <input type="number" className={field} value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} placeholder="0.00" />
-      </Label>
-      <Label text="Sale Price (AUD)">
-        <input type="number" className={field} value={salePrice} onChange={(e) => setSalePrice(e.target.value)} placeholder="0.00" />
-      </Label>
-      <Label text="Marginal Tax Rate (%)">
-        <select className={field} value={marginalRate} onChange={(e) => setMarginalRate(e.target.value)}>
-          <option value="0">0% – Tax-free threshold</option>
-          <option value="19">19%</option>
-          <option value="32.5">32.5%</option>
-          <option value="37">37%</option>
-          <option value="45">45%</option>
-        </select>
-      </Label>
-      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-        <input type="checkbox" checked={heldOver12Months} onChange={(e) => setHeldOver12Months(e.target.checked)} className="rounded border-slate-300" />
-        Held for more than 12 months
-      </label>
-      <button type="button" onClick={calculate} className={btnPrimary}>Calculate CGT</button>
-      {result && (
-        <div className={resultBox}>
-          <Row label="Capital Gain" value={currency(result.capitalGain)} />
-          {result.discount && <Row label="50% CGT Discount Applied" value="Yes" />}
-          <Row label="Taxable Gain" value={currency(result.taxableGain)} />
-          <Row label="Estimated Tax Payable" value={currency(result.taxPayable)} highlight />
+    <div className="surface-card overflow-hidden">
+      <div className="grid lg:grid-cols-2">
+        {/* Left – Inputs */}
+        <div className="space-y-5 border-b border-slate-200 p-6 dark:border-slate-700 lg:border-b-0 lg:border-r">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Australian CGT Calculator</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Calculate capital gains tax with the 50% CGT discount for assets held over 12 months.</p>
+          </div>
+
+          <Label text="Purchase price">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input type="number" className={`${field} pl-8`} value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
+            </div>
+          </Label>
+
+          <Label text="Sale price">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input type="number" className={`${field} pl-8`} value={salePrice} onChange={(e) => setSalePrice(e.target.value)} />
+            </div>
+          </Label>
+
+          <Label text="Marginal tax rate">
+            <select className={field} value={marginalRate} onChange={(e) => setMarginalRate(e.target.value)}>
+              <option value="0">0% – Tax-free threshold</option>
+              <option value="19">19%</option>
+              <option value="32.5">32.5%</option>
+              <option value="37">37%</option>
+              <option value="45">45%</option>
+            </select>
+          </Label>
+
+          <Label text="Other taxable income (optional)">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input type="number" className={`${field} pl-8`} value={otherIncome} onChange={(e) => setOtherIncome(e.target.value)} />
+            </div>
+          </Label>
+
+          <div className="space-y-1">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Held for more than 12 months?</span>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <input type="radio" name="cgt-held" checked={heldOver12Months} onChange={() => setHeldOver12Months(true)} className="accent-primary" /> Yes
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <input type="radio" name="cgt-held" checked={!heldOver12Months} onChange={() => setHeldOver12Months(false)} className="accent-primary" /> No
+              </label>
+            </div>
+          </div>
         </div>
-      )}
-    </Card>
+
+        {/* Right – Results */}
+        <div className="p-6 space-y-6">
+          {result ? (
+            <>
+              {/* Hero */}
+              <div className="text-center">
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Estimated tax payable</p>
+                <p className={`mt-1 text-4xl font-bold ${result.taxPayable > 0 ? "text-red-500" : "text-green-500"}`}>{currency(result.taxPayable)}</p>
+              </div>
+
+              {/* Key metrics */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">Capital Gain</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{currency(result.capitalGain)}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">Net Profit</p>
+                  <p className="mt-1 text-lg font-semibold text-green-600">{currency(result.netProfit)}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">Taxable Gain</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{currency(result.taxableGain)}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">Effective Tax Rate</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{pct(result.effectiveRate)}</p>
+                </div>
+              </div>
+
+              {/* Discount badge */}
+              {result.discount && (
+                <div className="flex items-center gap-2 rounded-xl bg-indigo-50 px-4 py-3 dark:bg-indigo-900/20">
+                  <span className="inline-block h-2 w-2 rounded-full bg-indigo-500" />
+                  <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">50% CGT discount applied — you saved {currency(result.capitalGain * 0.5 * (parseFloat(marginalRate) / 100))}</span>
+                </div>
+              )}
+
+              {/* Purchase vs Sale chart */}
+              {result.barData && (
+                <div>
+                  <p className="mb-3 text-center text-sm font-medium text-slate-700 dark:text-slate-300">Purchase vs Sale</p>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={result.barData} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                      <XAxis type="number" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(v) => v >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 13 }} tickLine={false} axisLine={false} width={70} />
+                      <Tooltip formatter={(v) => [currency(v), "Value"]} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,.1)" }} />
+                      <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={32}>
+                        {result.barData.map((entry, i) => (
+                          <Cell key={i} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* Breakdown */}
+              {result.breakdown.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex h-4 overflow-hidden rounded-full">
+                    {result.breakdown.map((seg) => {
+                      const total = result.breakdown.reduce((s, b) => s + Math.abs(b.value), 0);
+                      const widthPct = total > 0 ? (Math.abs(seg.value) / total) * 100 : 0;
+                      return widthPct > 0 ? <div key={seg.label} style={{ width: `${widthPct}%`, backgroundColor: seg.color }} /> : null;
+                    })}
+                  </div>
+                  {result.breakdown.map((seg) => {
+                    const total = result.breakdown.reduce((s, b) => s + Math.abs(b.value), 0);
+                    const segPct = total > 0 ? (Math.abs(seg.value) / total) * 100 : 0;
+                    return (
+                      <div key={seg.label} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: seg.color }} />
+                          <span className="text-slate-600 dark:text-slate-400">{seg.label}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="font-medium text-slate-900 dark:text-white">{currency(seg.value)}</span>
+                          <span className="w-10 text-right text-slate-400">{Math.round(segPct)}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+              Enter values to see results
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -285,8 +422,12 @@ function InvestmentCalculator() {
 }
 
 function AveragePriceCalculator() {
-  const [entries, setEntries] = useState([{ shares: "", price: "" }]);
-  const [result, setResult] = useState(null);
+  const [entries, setEntries] = useState([
+    { shares: "100", price: "5.20" },
+    { shares: "150", price: "4.80" },
+    { shares: "200", price: "5.50" },
+  ]);
+  const [currentPrice, setCurrentPrice] = useState("5.60");
 
   const updateEntry = (i, key, value) => {
     const next = [...entries];
@@ -301,87 +442,358 @@ function AveragePriceCalculator() {
     setEntries(entries.filter((_, idx) => idx !== i));
   };
 
-  const calculate = () => {
+  const result = useMemo(() => {
     let totalShares = 0;
     let totalCost = 0;
+    const validEntries = [];
+
     for (const e of entries) {
       const s = parseFloat(e.shares);
       const p = parseFloat(e.price);
-      if (isNaN(s) || isNaN(p)) return;
+      if (isNaN(s) || isNaN(p) || s <= 0 || p <= 0) continue;
       totalShares += s;
       totalCost += s * p;
+      validEntries.push({ shares: s, price: p, cost: s * p });
     }
-    if (totalShares === 0) return;
-    setResult({ avgPrice: totalCost / totalShares, totalShares, totalCost });
-  };
+
+    if (totalShares === 0) return null;
+
+    const avgPrice = totalCost / totalShares;
+    const mktPrice = parseFloat(currentPrice) || 0;
+    const currentValue = mktPrice > 0 ? totalShares * mktPrice : 0;
+    const unrealisedPL = mktPrice > 0 ? currentValue - totalCost : 0;
+    const unrealisedPLPct = totalCost > 0 && mktPrice > 0 ? (unrealisedPL / totalCost) * 100 : 0;
+
+    // Running average data for chart
+    let runningShares = 0;
+    let runningCost = 0;
+    const chartData = validEntries.map((e, i) => {
+      runningShares += e.shares;
+      runningCost += e.cost;
+      return { name: `Buy ${i + 1}`, avg: runningCost / runningShares, shares: runningShares };
+    });
+
+    // Pie data for cost weight
+    const pieData = validEntries.map((e, i) => ({
+      name: `Buy ${i + 1}`,
+      value: e.cost,
+    }));
+
+    const PIE_COLORS = ["#6366f1", "#f59e0b", "#22c55e", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+
+    return { avgPrice, totalShares, totalCost, currentValue, unrealisedPL, unrealisedPLPct, chartData, pieData, validEntries, PIE_COLORS };
+  }, [entries, currentPrice]);
 
   return (
-    <Card title="Average Price Calculator" description="Calculate the weighted average purchase price across multiple buy orders.">
-      {entries.map((entry, i) => (
-        <div key={i} className="flex items-end gap-2">
-          <Label text={`Shares #${i + 1}`} className="flex-1">
-            <input type="number" className={field} value={entry.shares} onChange={(e) => updateEntry(i, "shares", e.target.value)} placeholder="Qty" />
+    <div className="surface-card overflow-hidden">
+      <div className="grid lg:grid-cols-2">
+        {/* Left – Inputs */}
+        <div className="space-y-5 border-b border-slate-200 p-6 dark:border-slate-700 lg:border-b-0 lg:border-r">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Average Price Calculator</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Calculate the weighted average purchase price across multiple buy orders.</p>
+          </div>
+
+          {entries.map((entry, i) => (
+            <div key={i} className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Purchase #{i + 1}</span>
+                {entries.length > 1 && (
+                  <button type="button" onClick={() => removeEntry(i)} className="text-xs font-medium text-red-500 hover:text-red-600">Remove</button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Label text="Shares">
+                  <input type="number" className={field} value={entry.shares} onChange={(e) => updateEntry(i, "shares", e.target.value)} placeholder="Qty" />
+                </Label>
+                <Label text="Price per share">
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+                    <input type="number" className={`${field} pl-8`} value={entry.price} onChange={(e) => updateEntry(i, "price", e.target.value)} placeholder="0.00" />
+                  </div>
+                </Label>
+              </div>
+            </div>
+          ))}
+
+          <button type="button" onClick={addEntry} className="flex w-full items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-200 py-2.5 text-sm font-medium text-primary hover:border-primary/40 dark:border-slate-700">
+            + Add another purchase
+          </button>
+
+          <Label text="Current market price (optional)">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input type="number" className={`${field} pl-8`} value={currentPrice} onChange={(e) => setCurrentPrice(e.target.value)} placeholder="0.00" />
+            </div>
           </Label>
-          <Label text="Price" className="flex-1">
-            <input type="number" className={field} value={entry.price} onChange={(e) => updateEntry(i, "price", e.target.value)} placeholder="0.00" />
-          </Label>
-          {entries.length > 1 && (
-            <button type="button" onClick={() => removeEntry(i)} className="mb-0.5 rounded-lg p-2 text-sm text-danger hover:bg-red-50 dark:hover:bg-red-900/20">
-              Remove
-            </button>
+        </div>
+
+        {/* Right – Results */}
+        <div className="p-6 space-y-6">
+          {result ? (
+            <>
+              {/* Hero */}
+              <div className="text-center">
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Weighted average price</p>
+                <p className="mt-1 text-4xl font-bold text-primary">{currency(result.avgPrice)}</p>
+              </div>
+
+              {/* Key metrics */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">Total Shares</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{result.totalShares.toLocaleString()}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">Total Cost</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{currency(result.totalCost)}</p>
+                </div>
+                {result.currentValue > 0 && (
+                  <>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                      <p className="text-xs uppercase tracking-wider text-slate-400">Current Value</p>
+                      <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{currency(result.currentValue)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                      <p className="text-xs uppercase tracking-wider text-slate-400">Unrealised P&L</p>
+                      <p className={`mt-1 text-lg font-semibold ${result.unrealisedPL >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        {currency(result.unrealisedPL)} ({result.unrealisedPLPct >= 0 ? "+" : ""}{result.unrealisedPLPct.toFixed(2)}%)
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Average price progression chart */}
+              <div>
+                <p className="mb-3 text-center text-sm font-medium text-slate-700 dark:text-slate-300">Average price after each purchase</p>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={result.chartData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v.toFixed(2)}`} width={55} domain={["dataMin - 0.5", "dataMax + 0.5"]} />
+                    <Tooltip formatter={(v) => [currency(v), "Avg Price"]} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,.1)" }} />
+                    <Bar dataKey="avg" radius={[4, 4, 0, 0]}>
+                      {result.chartData.map((_, i) => (
+                        <Cell key={i} fill="#6366f1" />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Cost allocation pie */}
+              <div>
+                <p className="mb-3 text-center text-sm font-medium text-slate-700 dark:text-slate-300">Cost allocation by purchase</p>
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie data={result.pieData} dataKey="value" cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3}>
+                      {result.pieData.map((_, i) => (
+                        <Cell key={i} fill={result.PIE_COLORS[i % result.PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v) => [currency(v), "Cost"]} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,.1)" }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="mt-2 flex flex-wrap justify-center gap-3">
+                  {result.pieData.map((seg, i) => (
+                    <div key={seg.name} className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: result.PIE_COLORS[i % result.PIE_COLORS.length] }} />
+                      {seg.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Purchase table */}
+              <div className="space-y-1 text-sm">
+                {result.validEntries.map((e, i) => (
+                  <div key={i} className="flex items-center justify-between border-b border-slate-100 py-2 dark:border-slate-800">
+                    <span className="text-slate-600 dark:text-slate-400">Buy {i + 1}: {e.shares} @ {currency(e.price)}</span>
+                    <span className="font-medium text-slate-900 dark:text-white">{currency(e.cost)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+              Enter values to see results
+            </div>
           )}
         </div>
-      ))}
-      <button type="button" onClick={addEntry} className="text-sm font-medium text-primary">
-        + Add another purchase
-      </button>
-      <button type="button" onClick={calculate} className={btnPrimary}>Calculate Average</button>
-      {result && (
-        <div className={resultBox}>
-          <Row label="Average Price" value={currency(result.avgPrice)} highlight />
-          <Row label="Total Shares" value={result.totalShares.toLocaleString()} />
-          <Row label="Total Cost" value={currency(result.totalCost)} />
-        </div>
-      )}
-    </Card>
+      </div>
+    </div>
   );
 }
 
 function CAGRCalculator() {
-  const [beginValue, setBeginValue] = useState("");
-  const [endValue, setEndValue] = useState("");
-  const [years, setYears] = useState("");
-  const [result, setResult] = useState(null);
+  const [beginValue, setBeginValue] = useState("50000");
+  const [endValue, setEndValue] = useState("120000");
+  const [years, setYears] = useState("7");
 
-  const calculate = () => {
-    const bv = parseFloat(beginValue);
-    const ev = parseFloat(endValue);
-    const t = parseFloat(years);
-    if (isNaN(bv) || isNaN(ev) || isNaN(t) || bv <= 0 || t <= 0) return;
+  const result = useMemo(() => {
+    const bv = parseFloat(beginValue) || 0;
+    const ev = parseFloat(endValue) || 0;
+    const t = parseFloat(years) || 0;
+    if (bv <= 0 || ev <= 0 || t <= 0) return null;
 
     const cagr = (Math.pow(ev / bv, 1 / t) - 1) * 100;
-    setResult({ cagr, totalReturn: ((ev - bv) / bv) * 100 });
-  };
+    const totalReturn = ((ev - bv) / bv) * 100;
+    const absoluteGain = ev - bv;
+
+    // Growth curve data
+    const growthData = [];
+    for (let y = 0; y <= t; y++) {
+      growthData.push({
+        year: y,
+        name: `${y}`,
+        value: bv * Math.pow(1 + cagr / 100, y),
+      });
+    }
+
+    // What-if: compare different rates
+    const compareRates = [5, 7, 10, 12, 15].filter((r) => Math.abs(r - cagr) > 0.5);
+    const comparisonData = compareRates.map((r) => ({
+      rate: r,
+      finalValue: bv * Math.pow(1 + r / 100, t),
+    }));
+
+    // Doubling time (Rule of 72 actual)
+    const doublingTime = cagr > 0 ? Math.log(2) / Math.log(1 + cagr / 100) : 0;
+
+    return { cagr, totalReturn, absoluteGain, growthData, comparisonData, doublingTime, bv, ev };
+  }, [beginValue, endValue, years]);
 
   return (
-    <Card title="CAGR Calculator" description="Determine the Compound Annual Growth Rate of an investment over time.">
-      <Label text="Beginning Value (AUD)">
-        <input type="number" className={field} value={beginValue} onChange={(e) => setBeginValue(e.target.value)} placeholder="0.00" />
-      </Label>
-      <Label text="Ending Value (AUD)">
-        <input type="number" className={field} value={endValue} onChange={(e) => setEndValue(e.target.value)} placeholder="0.00" />
-      </Label>
-      <Label text="Number of Years">
-        <input type="number" className={field} value={years} onChange={(e) => setYears(e.target.value)} placeholder="5" />
-      </Label>
-      <button type="button" onClick={calculate} className={btnPrimary}>Calculate CAGR</button>
-      {result && (
-        <div className={resultBox}>
-          <Row label="CAGR" value={pct(result.cagr)} highlight />
-          <Row label="Total Return" value={pct(result.totalReturn)} />
+    <div className="surface-card overflow-hidden">
+      <div className="grid lg:grid-cols-2">
+        {/* Left – Inputs */}
+        <div className="space-y-5 border-b border-slate-200 p-6 dark:border-slate-700 lg:border-b-0 lg:border-r">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-white">CAGR Calculator</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Determine the Compound Annual Growth Rate of an investment over time.</p>
+          </div>
+
+          <Label text="Beginning value">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input type="number" className={`${field} pl-8`} value={beginValue} onChange={(e) => setBeginValue(e.target.value)} />
+            </div>
+          </Label>
+
+          <Label text="Ending value">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input type="number" className={`${field} pl-8`} value={endValue} onChange={(e) => setEndValue(e.target.value)} />
+            </div>
+          </Label>
+
+          <Label text="Number of years">
+            <select className={field} value={years} onChange={(e) => setYears(e.target.value)}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30].map((y) => (
+                <option key={y} value={y}>{y} year{y > 1 ? "s" : ""}</option>
+              ))}
+            </select>
+          </Label>
         </div>
-      )}
-    </Card>
+
+        {/* Right – Results */}
+        <div className="p-6 space-y-6">
+          {result ? (
+            <>
+              {/* Hero */}
+              <div className="text-center">
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Compound Annual Growth Rate</p>
+                <p className={`mt-1 text-4xl font-bold ${result.cagr >= 0 ? "text-green-600" : "text-red-500"}`}>{pct(result.cagr)}</p>
+              </div>
+
+              {/* Key metrics */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">Total Return</p>
+                  <p className={`mt-1 text-lg font-semibold ${result.totalReturn >= 0 ? "text-green-600" : "text-red-500"}`}>{pct(result.totalReturn)}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">Absolute Gain</p>
+                  <p className={`mt-1 text-lg font-semibold ${result.absoluteGain >= 0 ? "text-green-600" : "text-red-500"}`}>{currency(result.absoluteGain)}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">Doubling Time</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{result.doublingTime > 0 ? `${result.doublingTime.toFixed(1)} yrs` : "N/A"}</p>
+                </div>
+              </div>
+
+              {/* Growth curve */}
+              <div>
+                <p className="mb-3 text-center text-sm font-medium text-slate-700 dark:text-slate-300">Growth trajectory</p>
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={result.growthData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${Math.round(v / 1000)}k` : `$${v}`} width={55} />
+                    <Tooltip formatter={(v) => [currency(v), "Value"]} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,.1)" }} />
+                    <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2.5} dot={{ fill: "#6366f1", r: 4 }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Stacked bar */}
+              <div className="space-y-2">
+                <div className="flex h-4 overflow-hidden rounded-full">
+                  <div style={{ width: `${(result.bv / result.ev) * 100}%`, backgroundColor: "#6366f1" }} />
+                  <div style={{ width: `${(result.absoluteGain / result.ev) * 100}%`, backgroundColor: "#22c55e" }} />
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-3 w-3 rounded-full bg-indigo-500" />
+                    <span className="text-slate-600 dark:text-slate-400">Initial Investment</span>
+                  </div>
+                  <span className="font-medium text-slate-900 dark:text-white">{currency(result.bv)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-3 w-3 rounded-full bg-green-500" />
+                    <span className="text-slate-600 dark:text-slate-400">Growth</span>
+                  </div>
+                  <span className="font-medium text-slate-900 dark:text-white">{currency(result.absoluteGain)}</span>
+                </div>
+              </div>
+
+              {/* Comparison table */}
+              {result.comparisonData.length > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">What if your CAGR was different?</p>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-center justify-between border-b border-primary/20 py-2">
+                      <span className="font-medium text-primary">{pct(result.cagr)} (Actual)</span>
+                      <span className="font-semibold text-primary">{currency(result.ev)}</span>
+                    </div>
+                    {result.comparisonData.map((c) => (
+                      <div key={c.rate} className="flex items-center justify-between border-b border-slate-100 py-2 dark:border-slate-800">
+                        <span className="text-slate-600 dark:text-slate-400">{c.rate}%</span>
+                        <span className="font-medium text-slate-900 dark:text-white">{currency(c.finalValue)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Year-by-year table */}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                {result.growthData.map((row) => (
+                  <div key={row.year} className="flex items-center justify-between border-b border-slate-100 py-2 dark:border-slate-800">
+                    <span className="text-slate-600 dark:text-slate-400">Year {row.year}</span>
+                    <span className="font-medium text-slate-900 dark:text-white">{currency(row.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+              Enter values to see results
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
