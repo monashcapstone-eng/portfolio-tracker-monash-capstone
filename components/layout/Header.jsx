@@ -6,11 +6,13 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Sun, Moon, ChevronDown, LogOut, Settings, Shield, User } from "lucide-react";
 import { getInitials } from "@/lib/utils";
+import ContactModal from "@/components/shared/ContactModal";
 
 export default function Header({ onMenuToggle }) {
   const { profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -45,6 +47,13 @@ export default function Header({ onMenuToggle }) {
       </div>
 
       <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setContactOpen(true)}
+          className="hidden rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 sm:inline-flex"
+        >
+          Contact Us
+        </button>
         <button
           onClick={toggleTheme}
           className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -111,6 +120,7 @@ export default function Header({ onMenuToggle }) {
           )}
         </div>
       </div>
+      <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
     </header>
   );
 }

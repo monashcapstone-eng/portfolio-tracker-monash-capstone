@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ArrowRight, Menu, Moon, Sun, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/context/ThemeContext";
+import ContactModal from "@/components/shared/ContactModal";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -16,6 +17,7 @@ const navItems = [
 export default function PublicNavbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
@@ -70,6 +72,13 @@ export default function PublicNavbar() {
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             {theme === "dark" ? "Light" : "Dark"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setContactOpen(true)}
+            className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Contact Us
           </button>
           <Link
             href="/login"
@@ -135,6 +144,13 @@ export default function PublicNavbar() {
               >
                 Log in
               </Link>
+              <button
+                type="button"
+                onClick={() => { setMobileOpen(false); setContactOpen(true); }}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                Contact Us
+              </button>
             </div>
             <Link
               href="/signup"
@@ -145,6 +161,8 @@ export default function PublicNavbar() {
           </div>
         </div>
       )}
+
+      <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
     </header>
   );
 }
