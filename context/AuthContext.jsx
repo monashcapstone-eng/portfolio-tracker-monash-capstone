@@ -8,6 +8,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   signOut as firebaseSignOut,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, firebaseClientConfigError } from "@/lib/firebase";
@@ -113,6 +114,13 @@ export function AuthProvider({ children }) {
     return result;
   };
 
+  const forgotPassword = async (email) => {
+    ensureFirebaseClient();
+    await sendPasswordResetEmail(auth, email, {
+      url: `${process.env.NEXT_PUBLIC_APP_URL}/login`,
+    });
+  };
+
   const signOutUser = async () => {
     ensureFirebaseClient();
     await firebaseSignOut(auth);
@@ -144,6 +152,7 @@ export function AuthProvider({ children }) {
     signIn,
     signInWithGoogle,
     signOut: signOutUser,
+    forgotPassword,
     updateProfile: updateUserProfile,
     getIdToken,
   };

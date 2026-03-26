@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function SignupPage() {
   const router = useRouter();
-  const { signUp, isAuthenticated, loading, configError } = useAuth();
+  const { signUp, signInWithGoogle, isAuthenticated, loading, configError } = useAuth();
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
@@ -18,6 +18,20 @@ export default function SignupPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const handleGoogleSignUp = async () => {
+    try {
+      setSubmitting(true);
+      setError("");
+      await signInWithGoogle();
+      router.replace("/home");
+    } catch (googleError) {
+      console.error("Google sign-up error:", googleError);
+      setError(googleError?.message || "Google sign-in failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
@@ -124,6 +138,21 @@ export default function SignupPage() {
             {submitting ? "Creating account..." : "Create account"}
           </button>
         </form>
+
+        <div className="mt-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+          <span className="text-xs text-slate-400">or</span>
+          <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleSignUp}
+          disabled={submitting || !!configError}
+          className="mt-4 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Sign up with Google
+        </button>
 
         <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">
           Already have an account?{" "}
